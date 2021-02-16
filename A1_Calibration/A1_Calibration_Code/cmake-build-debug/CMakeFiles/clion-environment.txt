@@ -1,4 +1,0 @@
-ToolSet: 16.0 (local)@D:\softwares\visual studio\install
-Options: 
-
-Options:

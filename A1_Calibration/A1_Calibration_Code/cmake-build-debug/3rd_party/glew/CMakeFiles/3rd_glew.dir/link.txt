@@ -1,0 +1,2 @@
+D:\softwares\MinGW\mingw64\bin\ar.exe qc ..\..\lib\lib3rd_glew.a  CMakeFiles/3rd_glew.dir/src/glew.c.obj
+D:\softwares\MinGW\mingw64\bin\ranlib.exe ..\..\lib\lib3rd_glew.a

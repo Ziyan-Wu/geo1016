@@ -55,122 +55,131 @@ bool CameraCalibration::calibration(
     std::cout << "TODO: I am going to implement calibration() ..." << std::endl;
 
     // TODO: check if input is valid (e.g., number of correspondences >= 6, sizes of 2D/3D points don't match) done
-    if ((points_2d.size() != points_3d.size()) || (points_2d.size() < 6) || (points_3d.size() < 6)) {
-        return false;
+    // chaeck pts number (both need >= 6) and correspondence number (match)
+    if (points_3d.size() != points_2d.size() || points_3d.size() < 6 || points_2d.size() < 6) return false;
+
+    // point_2d should follow the rule of image coordinates (coord x/y should be int and >= 0)
+    for (auto pt2d : points_2d){
+        auto x = pt2d.x;
+        auto y = pt2d.y;
+        if (x < 0 ||
+            y < 0 ||
+            floor(x) - x > 0.001 ||
+            floor(y) - y > 0.001){
+            return false;
+        }
     }
-    else {
 
-        // construct the P matrix (so P * m = 0).
-        Matrix<double> P(2 * points_2d.size(), 12, 0.0);
-        for (int i = 0; i < points_2d.size(); i++) {
-            std::vector<double> p = { points_3d[i][0],points_3d[i][1],points_3d[i][2],1 };
-            std::vector<double> p2 = { points_2d[i][0],points_2d[i][1] };
-            for (int j = 0; j < 4; j++) {
-                P[2 * i][j] = p[j];
-                P[2 * i][j + 4] = 0;
-                P[2 * i][j + 8] = -p2[0] * p[j];
-                P[2 * i + 1][j] = 0;
-                P[2 * i + 1][j + 4] = p[j];
-                P[2 * i + 1][j + 8] = -p2[1] * p[j];
-            }
+    // construct the P matrix (so P * m = 0).
+    Matrix<double> P(2 * points_2d.size(), 12, 0.0);
+    for (int i = 0; i < points_2d.size(); i++) {
+        std::vector<double> p = { points_3d[i][0],points_3d[i][1],points_3d[i][2],1 };
+        std::vector<double> p2 = { points_2d[i][0],points_2d[i][1] };
+        for (int j = 0; j < 4; j++) {
+            P[2 * i][j] = p[j];
+            P[2 * i][j + 4] = 0;
+            P[2 * i][j + 8] = -p2[0] * p[j];
+            P[2 * i + 1][j] = 0;
+            P[2 * i + 1][j + 4] = p[j];
+            P[2 * i + 1][j + 8] = -p2[1] * p[j];
         }
-        std::cout << "P: \n" << P << std::endl;
-
-
-
-        // solve for M (the whole projection matrix, i.e., M = K * [R, t]) using SVD decomposition.
-        Matrix<double> U(2 * points_2d.size(), 2 * points_2d.size(), 0.0);   // initialized with 0s
-        Matrix<double> S(2 * points_2d.size(), 12, 0.0);   // initialized with 0s
-        Matrix<double> V(12, 12, 0.0);   // initialized with 0s
-        svd_decompose(P, U, S, V);
-        // Check 1: U is orthogonal, so U * U^T must be identity
-        std::cout << "U*U^T: \n" << U * transpose(U) << std::endl;
-
-        // Check 2: V is orthogonal, so V * V^T must be identity
-        std::cout << "V: \n" << V << std::endl;
-
-        // Check 3: S must be a diagonal matrix
-        std::cout << "S: \n" << S << std::endl;
-
-        // Check 4: according to the definition, A = U * S * V^T
-        std::cout << "M - U * S * V^T: \n" << U * S * transpose(V) << std::endl;
-
-
-        Matrix<double> M(3, 4, 0.0);
-        //std::vector<double> v(12);
-        for (int i = 0; i < 3; i++) {
-
-            M[i][0] = V[i * 4][11];
-            M[i][1] = V[i * 4 + 1][11];
-            M[i][2] = V[i * 4 + 2][11];
-            M[i][3] = V[i * 4 + 3][11];
-        }
-
-        //check if the M is correct
-        for (int i = 0; i < points_3d.size(); i++) {
-            Matrix<double> pt(4, 1, 0.0);
-            pt[0][0] = points_3d[i][0];
-            pt[1][0] = points_3d[i][1];
-            pt[2][0] = points_3d[i][2];
-            pt[3][0] = 1;
-            Matrix<double> multi = M * pt;
-            std::cout << "\t" << i << ": (" << points_3d_[i] << ") <-> (" << multi[0][0] / multi[2][0] << " " << multi[1][0] / multi[2][0] << ")" << std::endl;
-        }
-
-        //extract intrinsic parameters from M.
-        vec3 a1(M[0][0], M[0][1], M[0][2]);
-        vec3 a2(M[1][0], M[1][1], M[1][2]);
-        vec3 a3(M[2][0], M[2][1], M[2][2]);
-        vec3 b(M[0][3], M[1][3], M[2][3]);
-        std::cout << "a1: " << a1 << '\n';
-        std::cout << "a3: " << a3 << '\n';
-        std::cout << "a2: " << a2 << '\n';
-        std::cout << "b: " << b << '\n';
-
-        float ro = 1 / a3.length();
-        cx = pow(ro, 2) * (dot(a1, a3));
-        cy = pow(ro, 2) * (dot(a2, a3));
-        float cos = -(dot(cross(a1, a3), cross(a2, a3))) / (cross(a1, a3).length() * cross(a2, a3).length());
-        float angle = std::acos(cos);
-        fx = pow(ro, 2) * cross(a1, a3).length() * std::sin(angle);
-        fy = pow(ro, 2) * cross(a2, a3).length() * std::sin(angle);
-        skew = -fx * cotan(angle);
-        std::cout << "ro: \n" << ro << std::endl;
-
-
-        //extract extrinsic parameters from M.
-        mat3 K;
-        K[0] = fx;
-        K[1] = 0;
-        K[2] = 0;
-        K[3] = -fx * double(cotan(angle));
-        K[4] = fy / std::sin(angle);
-        K[5] = 0;
-        K[6] = cx;
-        K[7] = cy;
-        K[8] = 1;
-        std::cout << "K: \n" << K << '\n';
-
-        vec3 r1 = cross(a2, a3) / cross(a2, a3).length();
-        vec3 r3 = ro * a3;
-        vec3 r2 = cross(r3, r1);
-
-
-        for (int i = 0; i < 3; i++) {
-            R[3 * i] = r1[i];
-            R[3 * i + 1] = r2[i];
-            R[3 * i + 2] = r3[i];
-        }
-        std::cout << "R: \n" << R << std::endl;
-        mat3 invK = inverse(K);
-        std::cout << "K: \n" << K << std::endl;
-        std::cout << "invK: \n" << invK << std::endl;
-        t = invK * b * ro;
-        std::cout << "t: \n" << t << '\n';
-        return true;
-        // TODO: delete the above code in you final submission (which are just examples).
-
     }
+    std::cout << "P: \n" << P << std::endl;
+
+
+
+    // solve for M (the whole projection matrix, i.e., M = K * [R, t]) using SVD decomposition.
+    Matrix<double> U(2 * points_2d.size(), 2 * points_2d.size(), 0.0);   // initialized with 0s
+    Matrix<double> S(2 * points_2d.size(), 12, 0.0);   // initialized with 0s
+    Matrix<double> V(12, 12, 0.0);   // initialized with 0s
+    svd_decompose(P, U, S, V);
+    // Check 1: U is orthogonal, so U * U^T must be identity
+    std::cout << "U*U^T: \n" << U * transpose(U) << std::endl;
+
+    // Check 2: V is orthogonal, so V * V^T must be identity
+    std::cout << "V: \n" << V << std::endl;
+
+    // Check 3: S must be a diagonal matrix
+    std::cout << "S: \n" << S << std::endl;
+
+    // Check 4: according to the definition, A = U * S * V^T
+    std::cout << "M - U * S * V^T: \n" << U * S * transpose(V) << std::endl;
+
+
+    Matrix<double> M(3, 4, 0.0);
+    //std::vector<double> v(12);
+    for (int i = 0; i < 3; i++) {
+
+        M[i][0] = V[i * 4][11];
+        M[i][1] = V[i * 4 + 1][11];
+        M[i][2] = V[i * 4 + 2][11];
+        M[i][3] = V[i * 4 + 3][11];
+    }
+
+    //check if the M is correct
+    for (int i = 0; i < points_3d.size(); i++) {
+        Matrix<double> pt(4, 1, 0.0);
+        pt[0][0] = points_3d[i][0];
+        pt[1][0] = points_3d[i][1];
+        pt[2][0] = points_3d[i][2];
+        pt[3][0] = 1;
+        Matrix<double> multi = M * pt;
+        std::cout << "\t" << i << ": (" << points_3d_[i] << ") <-> (" << multi[0][0] / multi[2][0] << " " << multi[1][0] / multi[2][0] << ")" << std::endl;
+    }
+
+    //extract intrinsic parameters from M.
+    vec3 a1(M[0][0], M[0][1], M[0][2]);
+    vec3 a2(M[1][0], M[1][1], M[1][2]);
+    vec3 a3(M[2][0], M[2][1], M[2][2]);
+    vec3 b(M[0][3], M[1][3], M[2][3]);
+    std::cout << "a1: " << a1 << '\n';
+    std::cout << "a3: " << a3 << '\n';
+    std::cout << "a2: " << a2 << '\n';
+    std::cout << "b: " << b << '\n';
+
+    float ro = 1 / a3.length();
+    cx = pow(ro, 2) * (dot(a1, a3));
+    cy = pow(ro, 2) * (dot(a2, a3));
+    float cos = -(dot(cross(a1, a3), cross(a2, a3))) / (cross(a1, a3).length() * cross(a2, a3).length());
+    float angle = std::acos(cos);
+    fx = pow(ro, 2) * cross(a1, a3).length() * std::sin(angle);
+    fy = pow(ro, 2) * cross(a2, a3).length() * std::sin(angle);
+    skew = -fx * cotan(angle);
+    std::cout << "ro: \n" << ro << std::endl;
+
+
+    //extract extrinsic parameters from M.
+    mat3 K;
+    K[0] = fx;
+    K[1] = 0;
+    K[2] = 0;
+    K[3] = -fx * double(cotan(angle));
+    K[4] = fy / std::sin(angle);
+    K[5] = 0;
+    K[6] = cx;
+    K[7] = cy;
+    K[8] = 1;
+    std::cout << "K: \n" << K << '\n';
+
+    vec3 r1 = cross(a2, a3) / cross(a2, a3).length();
+    vec3 r3 = ro * a3;
+    vec3 r2 = cross(r3, r1);
+
+
+    for (int i = 0; i < 3; i++) {
+        R[3 * i] = r1[i];
+        R[3 * i + 1] = r2[i];
+        R[3 * i + 2] = r3[i];
+    }
+    std::cout << "R: \n" << R << std::endl;
+    mat3 invK = inverse(K);
+    std::cout << "K: \n" << K << std::endl;
+    std::cout << "invK: \n" << invK << std::endl;
+    t = invK * b * ro;
+    std::cout << "t: \n" << t << '\n';
+    return true;
+    // TODO: delete the above code in you final submission (which are just examples).
+
 }
 
 

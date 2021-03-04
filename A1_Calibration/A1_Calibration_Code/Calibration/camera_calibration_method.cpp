@@ -97,7 +97,7 @@ bool CameraCalibration::calibration(
     std::cout << "U*U^T: \n" << U * transpose(U) << std::endl;
 
     // Check 2: V is orthogonal, so V * V^T must be identity
-    std::cout << "V: \n" << V << std::endl;
+    std::cout << "V*V^T: \n" << V * transpose(V) << std::endl;
 
     // Check 3: S must be a diagonal matrix
     std::cout << "S: \n" << S << std::endl;

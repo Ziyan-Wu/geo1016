@@ -103,7 +103,7 @@ bool CameraCalibration::calibration(
     std::cout << "S: \n" << S << std::endl;
 
     // Check 4: according to the definition, A = U * S * V^T
-    std::cout << "M - U * S * V^T: \n" << U * S * transpose(V) << std::endl;
+    std::cout << "P - U * S * V^T: \n" << P - U * S * transpose(V) << std::endl;
 
 
     Matrix<double> M(3, 4, 0.0);

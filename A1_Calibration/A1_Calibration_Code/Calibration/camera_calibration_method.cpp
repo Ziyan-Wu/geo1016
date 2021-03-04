@@ -31,7 +31,7 @@ using namespace easy3d;
 
 float cotan(float i) { return(1 / std::tan(i)); }
 /**
- * TODO: Finish this function for calibrating a camera from the corresponding 3D-2D point pairs.
+ *Finish this function for calibrating a camera from the corresponding 3D-2D point pairs.
  *       You may define a few functions for some sub-tasks.
  *
  * @param points_3d   An array of 3D points.
@@ -52,9 +52,9 @@ bool CameraCalibration::calibration(
     mat3& R,
     vec3& t)
 {
-    std::cout << "TODO: I am going to implement calibration() ..." << std::endl;
+    std::cout << "I am going to implement calibration() ..." << std::endl;
 
-    // TODO: check if input is valid (e.g., number of correspondences >= 6, sizes of 2D/3D points don't match) done
+    // check if input is valid (e.g., number of correspondences >= 6, sizes of 2D/3D points don't match) done
     // chaeck pts number (both need >= 6) and correspondence number (match)
     if (points_3d.size() != points_2d.size() || points_3d.size() < 6 || points_2d.size() < 6) return false;
 
@@ -159,7 +159,6 @@ bool CameraCalibration::calibration(
     K[6] = cx;
     K[7] = cy;
     K[8] = 1;
-    std::cout << "K: \n" << K << '\n';
 
     vec3 r1 = cross(a2, a3) / cross(a2, a3).length();
     vec3 r3 = ro * a3;
@@ -178,7 +177,6 @@ bool CameraCalibration::calibration(
     t = invK * b * ro;
     std::cout << "t: \n" << t << '\n';
     return true;
-    // TODO: delete the above code in you final submission (which are just examples).
 
 }
 

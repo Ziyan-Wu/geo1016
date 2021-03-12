@@ -59,57 +59,8 @@ Matrix<double> to_Matrix(const mat &M) {
 
 //===========================================================================================
 /// my code
-//void Normalize(const std::vector<vec3> &points, std::vector<vec3> &nor_points, Matrix<double> &T) {
-//    //第一步得到所有特征点的均值,并将所有点的均值为0
-//    float meanX = 0;
-//    float meanY = 0;
-//    for (int i = 0; i < points.size(); i++) {
-//        meanX += points[i].x;
-//        meanY += points[i].y;
-//    }
-//    meanX /= points.size();
-//    meanY /= points.size();
-//
-//    //第二步将所有点到原点的距离为根号2
-//    float meanDevX = 0;
-//    float meanDevY = 0;
-//    for (int i = 0; i < points.size(); i++) {
-//        nor_points[i].x = points[i].x - meanX;
-//        nor_points[i].y = points[i].y - meanY;
-//        meanDevX += fabs(nor_points[i].x); //fabs是求一个实数的绝对值  点到原点距离的累加
-//        meanDevY += fabs(nor_points[i].y);
-//    }
-//    meanDevX /= points.size(); //点到原点距离的平均值
-//    meanDevY /= points.size();
-//    for (int i = 0; i < points.size(); i++) {
-//        nor_points[i].x /= meanDevX;
-//        nor_points[i].y /= meanDevY;
-//    }
-//
-//    //用于还原特征点到原始的坐标系,获得矩阵   |sX  0  -meanx*sX|  用于取逆     x    快速还原
-//    //                                  |0   sY -meany*sY|          *   y
-//    //                                  |0   0      1    |              1
-//    float sX = 1.0 / meanDevX;
-//    float sY = 1.0 / meanDevY;
-//    T(0, 0) = sX;
-//    T(0, 1) = 0;
-//    T(0, 2) = -meanX * sX;
-//    T(1, 0) = sY;
-//    T(1, 1) = sY;
-//    T(1, 2) = -meanY * sY;
-//    T(2, 0) = 0;
-//    T(2, 1) = 0;
-//    T(2, 2) = 1;
-
-//    Matrix<double> T (3, 3, 0.0);
-//    T[0][0] = sX;
-//    T[1][1] = sY;
-//    T[0][2] = -meanX * sX;
-//    T[1][2] = -meanY * sY;
-//    T[2][2] = 1;
-//}
-
 Matrix<double> normalized_matrix(std::vector<vec3> points, double size) {
+//    1. cooordinate / 1
     double sum_x = 0.0, sum_y = 0.0, ave_x, ave_y;
     for (int i = 0; i < size; i++) {
         sum_x = sum_x + points[i].x;
@@ -122,20 +73,24 @@ Matrix<double> normalized_matrix(std::vector<vec3> points, double size) {
     double temp = 0.0;
     // variance
     for (int i = 0; i < size; i++) {
-        temp = temp + pow((points[i].x - ave_x), 2) + pow((points[i].y - ave_y), 2);
+//        2. pow
+        temp += distance(vec2(points[i]), vec2(ave_x, ave_y));
+//        temp = temp + pow((points[i].x - ave_x), 2) + pow((points[i].y - ave_y), 2);
     }
+    temp /= size;
+    double scale = std::sqrt(2) / temp;
     // std
-    double std = pow(pow(temp, 0.5) / size, 0.5);
+//    double std = pow(temp / size, 0.5);
     // √2
-    double scale = pow(2, 0.5) / std;
+//    double scale = pow(2, 0.5) / std;
 //    std::cout << "scale\n" << scale << '\n';
     Matrix<double> T(3, 3, 0.0);
     T[0][0] = scale;
     T[1][0] = 0;
-    T[2][1] = 0;
+    T[2][0] = 0;
     T[0][1] = 0;
     T[1][1] = scale;
-    T[2][2] = 0;
+    T[2][1] = 0;
     T[0][2] = -scale * ave_x;
     T[1][2] = -scale * ave_y;
     T[2][2] = 1;
@@ -143,10 +98,12 @@ Matrix<double> normalized_matrix(std::vector<vec3> points, double size) {
     return T;
 }
 
-std::vector<vec3> normalization(Matrix<double> T, std::vector<vec3> points, double size) {
-    std::vector<vec3> nor_points;
+std::vector<vec2> normalization(Matrix<double> T, std::vector<vec3> points, double size) {
+    std::vector<vec2> nor_points;
     for (int i = 0; i < size; i++) {
-        nor_points.push_back(to_mat3(T) * points[i]);
+        vec3 p = to_mat3(T) * points[i];
+        vec2 p2(p.x / p.z, p.y / p.z);
+        nor_points.push_back(p2);
     }
 //    std::cout << "new: \n" << nor_points << "\n";
     return nor_points;
@@ -200,10 +157,18 @@ std::vector<vec3> get_point3d(std::vector<vec3> points0, std::vector<vec3> point
 }
 
 
-int count_z(std::vector<vec3> points) {
+int count_z(std::vector<vec3> points, Matrix<double> &R, Matrix<double> &t) {
     int cnt = 0;
     for (int i = 0; i < points.size(); i++) {
-        if (points[i][2] > 0.0) {
+        mat4 temp_R(to_mat3(R));
+//        mat4 temp_t(to_mat3(t));
+        mat4 temp_t = mat4::identity();
+        temp_t(0, 3) = t(0, 0);
+        temp_t(1, 3) = t(1, 0);
+        temp_t(2, 3) = t(2, 0);
+
+        vec3 p = temp_t * temp_R * points[i];
+        if ((points[i][2] > 0.0) && (p.z > 0.0)) {
             cnt = cnt + 1;
         }
     }
@@ -239,10 +204,10 @@ bool Triangulation::triangulation(
 
     Matrix<double> T0 = normalized_matrix(points_0, size);
     Matrix<double> T1 = normalized_matrix(points_1, size);
-    std::vector<vec3> points_0_nor = normalization(T0, points_0, size);
-    std::vector<vec3> points_1_nor = normalization(T1, points_1, size);
+    std::vector<vec2> points_0_nor = normalization(T0, points_0, size);
+    std::vector<vec2> points_1_nor = normalization(T1, points_1, size);
     // print points_0_nor
-//    for (auto &i : points_0_nor) {
+//    for (auto &i : points_1_nor) {
 //        std::cout << "points_0_nor\n" << i << '\n';
 //    }
 
@@ -258,6 +223,7 @@ bool Triangulation::triangulation(
         A[i][6] = points_0_nor[i].x;
         A[i][7] = points_0_nor[i].y;
     }
+//    std::cout << "A \n" << A << '\n';
 
     std::cout << "---- first SVD \n" << '\n';
     Matrix<double> U(int(size), int(size), 0.0);   // initialized with 0s
@@ -290,7 +256,7 @@ bool Triangulation::triangulation(
     std::cout << "Sf_after \n" << Sf << '\n';
 
     Matrix<double> F;
-    F = Uf * Sf * Vf;
+    F = Uf * Sf * Vf.transpose();
     std::cout << "F\n" << F << '\n';
 
 //  1.4 Denormalization
@@ -348,10 +314,10 @@ bool Triangulation::triangulation(
 
     // R1 and R2
     Matrix<double> R1(3, 3, 0.0);
-    R1 = determinant(Ue * W * Ve) * Ue * W * Ve;
+    R1 = determinant(Ue * W * Ve) * Ue * W * Ve.transpose();
     std::cout << "R1 \n" << R1 << '\n';
     Matrix<double> R2(3, 3, 0.0);
-    R2 = determinant(Ue * W.transpose() * Ve) * Ue * W.transpose() * Ve;
+    R2 = determinant(Ue * W.transpose() * Ve) * Ue * W.transpose() * Ve.transpose();
     std::cout << "R2 \n" << R2 << '\n';
 
     // t1 and t2
@@ -376,12 +342,17 @@ bool Triangulation::triangulation(
     M1[0][0] = 1;
     M1[1][1] = 1;
     M1[2][2] = 1;
+    M1 = K * M1;
     std::cout << "M1 \n" << M1 << '\n';
     // calculate number of positive_z
-    int cnt11 = count_z(get_point3d(points_0, points_1, K, M1, R1, t1, size));
-    int cnt12 = count_z(get_point3d(points_0, points_1, K, M1, R1, t2, size));
-    int cnt21 = count_z(get_point3d(points_0, points_1, K, M1, R2, t1, size));
-    int cnt22 = count_z(get_point3d(points_0, points_1, K, M1, R2, t2, size));
+    int cnt11 = count_z(get_point3d(points_0, points_1, K, M1, R1, t1, size), R1, t1);
+    int cnt12 = count_z(get_point3d(points_0, points_1, K, M1, R1, t2, size), R1, t2);
+    int cnt21 = count_z(get_point3d(points_0, points_1, K, M1, R2, t1, size), R2, t1);
+    int cnt22 = count_z(get_point3d(points_0, points_1, K, M1, R2, t2, size), R2, t2);
+
+    std::vector<vec3> points_3d_2;
+
+
     std::cout << "cnt11 \n" << cnt11 << '\n';
     std::cout << "cnt12 \n" << cnt12 << '\n';
     std::cout << "cnt21 \n" << cnt21 << '\n';
@@ -389,28 +360,40 @@ bool Triangulation::triangulation(
 
 
     int max_cnt = std::max(cnt22, std::max(cnt21, std::max(cnt11, cnt12)));
-//    if (max_cnt == cnt11) {
-//        R = to_mat3(R1);
-//        t = vec3(t1[0][0], t1[1][0], t1[2][0]);
-//        points_3d = get_point3d(points_0, points_1, K, M1, R1, t1, size);
-//    }
+    if (max_cnt == cnt11) {
+        R = to_mat3(R1);
+        t = vec3(t1[0][0], t1[1][0], t1[2][0]);
+        points_3d = get_point3d(points_0, points_1, K, M1, R1, t1, size);
+        std::cerr << "cnt11 " << cnt11 << std::endl;
+        std::cerr << "R " << R << std::endl;
+        std::cerr << "t " << t << std::endl;
+    }
     if (max_cnt == cnt12) {
         R = to_mat3(R1);
         t = vec3(t2[0][0], t2[1][0], t2[2][0]);
         points_3d = get_point3d(points_0, points_1, K, M1, R1, t2, size);
+        std::cerr << "cnt12 " << cnt12 << std::endl;
+        std::cerr << "R " << R << std::endl;
+        std::cerr << "t " << t << std::endl;
     }
     if (max_cnt == cnt21) {
         R = to_mat3(R2);
         t = vec3(t1[0][0], t1[1][0], t1[2][0]);
         points_3d = get_point3d(points_0, points_1, K, M1, R2, t1, size);
+        std::cerr << "cnt21 " << cnt21 << std::endl;
+        std::cerr << "R " << R << std::endl;
+        std::cerr << "t " << t << std::endl;
     }
     if (max_cnt == cnt22) {
         R = to_mat3(R2);
         t = vec3(t2[0][0], t2[1][0], t2[2][0]);
         points_3d = get_point3d(points_0, points_1, K, M1, R2, t2, size);
+        std::cerr << "cnt22 " << cnt22 << std::endl;
+        std::cerr << "R " << R << std::endl;
+        std::cerr << "t " << t << std::endl;
     }
 
-    // print 3d points
+//     print 3d points
 //    for (auto &i : points_3d) {
 //        std::cout << "points_3d\n" << i << '\n';
 //    }

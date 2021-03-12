@@ -125,21 +125,11 @@ Matrix<double> normalized_matrix(std::vector<vec3> points, double size) {
         temp = temp + pow((points[i].x - ave_x), 2) + pow((points[i].y - ave_y), 2);
     }
     // std
-    double std = pow(temp / size, 0.5);
+    double std = pow(pow(temp, 0.5) / size, 0.5);
     // √2
     double scale = pow(2, 0.5) / std;
 //    std::cout << "scale\n" << scale << '\n';
     Matrix<double> T(3, 3, 0.0);
-//    T[0][0] = scale;
-//    T[1][0] = 0;
-//    T[2][1] = 0;
-//    T[0][1] = 0;
-//    T[1][1] = scale;
-//    T[2][2] = 0;
-//    T[0][2] = -scale * ave_x;
-//    T[1][2] = -scale * ave_y;
-//    T[2][2] = 1;
-
     T[0][0] = scale;
     T[1][0] = 0;
     T[2][1] = 0;
@@ -194,7 +184,7 @@ std::vector<vec3> get_point3d(std::vector<vec3> points0, std::vector<vec3> point
         svd_decompose(AA, Ua, Sa, Va);
 //        std::cout << "Va \n" << Va << '\n';
         // get last column
-        std::vector<double> Va_last_col = Va.get_row(3);
+        std::vector<double> Va_last_col = Va.get_column(3);
 //        std::cout << "Va_last_col \n" << Va_last_col << '\n';
         // change last element to 1
         vec3 one_point;
@@ -251,10 +241,10 @@ bool Triangulation::triangulation(
     Matrix<double> T1 = normalized_matrix(points_1, size);
     std::vector<vec3> points_0_nor = normalization(T0, points_0, size);
     std::vector<vec3> points_1_nor = normalization(T1, points_1, size);
-
-    for (auto &i : points_1_nor) {
-        std::cout << "points_1_nor\n" << i << '\n';
-    }
+    // print points_0_nor
+//    for (auto &i : points_0_nor) {
+//        std::cout << "points_0_nor\n" << i << '\n';
+//    }
 
 //  1.2 Linear solution
     Matrix<double> A(int(size), 9, 1.0);
@@ -307,6 +297,18 @@ bool Triangulation::triangulation(
     Matrix<double> F_de;
     F_de = T1.transpose() * F * T0;
     std::cout << "F_de\n" << F_de << '\n';
+    // F is up to scale, divide all elements by the last one
+    F_de(0, 0) = F_de(0, 0) / F_de(2, 2);
+    F_de(0, 1) = F_de(0, 1) / F_de(2, 2);
+    F_de(0, 2) = F_de(0, 2) / F_de(2, 2);
+    F_de(1, 0) = F_de(1, 0) / F_de(2, 2);
+    F_de(1, 1) = F_de(1, 1) / F_de(2, 2);
+    F_de(1, 2) = F_de(1, 2) / F_de(2, 2);
+    F_de(2, 0) = F_de(2, 0) / F_de(2, 2);
+    F_de(2, 1) = F_de(2, 1) / F_de(2, 2);
+    F_de(2, 2) = F_de(2, 2) / F_de(2, 2);
+    std::cout << "F_de after up to scale\n" << F_de << '\n';
+
 
 //  =================================================================================
 //  2.1 get Essential matrix E
@@ -387,11 +389,11 @@ bool Triangulation::triangulation(
 
 
     int max_cnt = std::max(cnt22, std::max(cnt21, std::max(cnt11, cnt12)));
-    if (max_cnt == cnt11) {
-        R = to_mat3(R1);
-        t = vec3(t1[0][0], t1[1][0], t1[2][0]);
-        points_3d = get_point3d(points_0, points_1, K, M1, R1, t1, size);
-    }
+//    if (max_cnt == cnt11) {
+//        R = to_mat3(R1);
+//        t = vec3(t1[0][0], t1[1][0], t1[2][0]);
+//        points_3d = get_point3d(points_0, points_1, K, M1, R1, t1, size);
+//    }
     if (max_cnt == cnt12) {
         R = to_mat3(R1);
         t = vec3(t2[0][0], t2[1][0], t2[2][0]);
@@ -407,6 +409,11 @@ bool Triangulation::triangulation(
         t = vec3(t2[0][0], t2[1][0], t2[2][0]);
         points_3d = get_point3d(points_0, points_1, K, M1, R2, t2, size);
     }
+
+    // print 3d points
+//    for (auto &i : points_3d) {
+//        std::cout << "points_3d\n" << i << '\n';
+//    }
 
 //  ===== = ======================================================================================
 

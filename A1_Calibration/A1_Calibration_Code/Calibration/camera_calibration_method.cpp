@@ -52,7 +52,7 @@ bool CameraCalibration::calibration(
     mat3& R,
     vec3& t)
 {
-    std::cout << "I am going to implement calibration() ..." << std::endl;
+//    std::cout << "I am going to implement calibration() ..." << std::endl;
 
     // check if input is valid (e.g., number of correspondences >= 6, sizes of 2D/3D points don't match) done
     // chaeck pts number (both need >= 6) and correspondence number (match)
@@ -84,7 +84,7 @@ bool CameraCalibration::calibration(
             P[2 * i + 1][j + 8] = -p2[1] * p[j];
         }
     }
-    std::cout << "P: \n" << P << std::endl;
+//    std::cout << "P: \n" << P << std::endl;
 
 
 
@@ -94,16 +94,16 @@ bool CameraCalibration::calibration(
     Matrix<double> V(12, 12, 0.0);   // initialized with 0s
     svd_decompose(P, U, S, V);
     // Check 1: U is orthogonal, so U * U^T must be identity
-    std::cout << "U*U^T: \n" << U * transpose(U) << std::endl;
+//    std::cout << "U*U^T: \n" << U * transpose(U) << std::endl;
 
     // Check 2: V is orthogonal, so V * V^T must be identity
-    std::cout << "V*V^T: \n" << V * transpose(V) << std::endl;
+//    std::cout << "V*V^T: \n" << V * transpose(V) << std::endl;
 
     // Check 3: S must be a diagonal matrix
-    std::cout << "S: \n" << S << std::endl;
+//    std::cout << "S: \n" << S << std::endl;
 
     // Check 4: according to the definition, A = U * S * V^T
-    std::cout << "P - U * S * V^T: \n" << P - U * S * transpose(V) << std::endl;
+//    std::cout << "P - U * S * V^T: \n" << P - U * S * transpose(V) << std::endl;
 
 
     Matrix<double> M(3, 4, 0.0);
@@ -124,7 +124,7 @@ bool CameraCalibration::calibration(
         pt[2][0] = points_3d[i][2];
         pt[3][0] = 1;
         Matrix<double> multi = M * pt;
-        std::cout << "\t" << i << ": (" << points_3d_[i] << ") <-> (" << multi[0][0] / multi[2][0] << " " << multi[1][0] / multi[2][0] << ")" << std::endl;
+//        std::cout << "\t" << i << ": (" << points_3d_[i] << ") <-> (" << multi[0][0] / multi[2][0] << " " << multi[1][0] / multi[2][0] << ")" << std::endl;
     }
 
     //extract intrinsic parameters from M.
@@ -132,10 +132,10 @@ bool CameraCalibration::calibration(
     vec3 a2(M[1][0], M[1][1], M[1][2]);
     vec3 a3(M[2][0], M[2][1], M[2][2]);
     vec3 b(M[0][3], M[1][3], M[2][3]);
-    std::cout << "a1: " << a1 << '\n';
-    std::cout << "a3: " << a3 << '\n';
-    std::cout << "a2: " << a2 << '\n';
-    std::cout << "b: " << b << '\n';
+//    std::cout << "a1: " << a1 << '\n';
+//    std::cout << "a3: " << a3 << '\n';
+//    std::cout << "a2: " << a2 << '\n';
+//    std::cout << "b: " << b << '\n';
 
     float ro = 1 / a3.length();
     cx = pow(ro, 2) * (dot(a1, a3));
@@ -145,7 +145,7 @@ bool CameraCalibration::calibration(
     fx = pow(ro, 2) * cross(a1, a3).length() * std::sin(angle);
     fy = pow(ro, 2) * cross(a2, a3).length() * std::sin(angle);
     skew = -fx * cotan(angle);
-    std::cout << "ro: \n" << ro << std::endl;
+//    std::cout << "ro: \n" << ro << std::endl;
 
 
     //extract extrinsic parameters from M.
@@ -170,12 +170,12 @@ bool CameraCalibration::calibration(
         R[3 * i + 1] = r2[i];
         R[3 * i + 2] = r3[i];
     }
-    std::cout << "R: \n" << R << std::endl;
+//    std::cout << "R: \n" << R << std::endl;
     mat3 invK = inverse(K);
-    std::cout << "K: \n" << K << std::endl;
-    std::cout << "invK: \n" << invK << std::endl;
+//    std::cout << "K: \n" << K << std::endl;
+//    std::cout << "invK: \n" << invK << std::endl;
     t = invK * b * ro;
-    std::cout << "t: \n" << t << '\n';
+//    std::cout << "t: \n" << t << '\n';
     return true;
 
 }

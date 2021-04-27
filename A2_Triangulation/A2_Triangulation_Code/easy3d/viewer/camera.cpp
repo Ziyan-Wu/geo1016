@@ -539,6 +539,10 @@ namespace easy3d {
 		setSceneRadius(0.5f * (max - min).norm());
 	}
 
+	void Camera::setSceneBoundingBox(const Box3 &box) {
+		setSceneBoundingBox(box.min(), box.max());
+	}
+
 	/*! Sets the sceneCenter().
 
 	 \attention This method also sets the pivotPoint() to sceneCenter(). */
@@ -1032,7 +1036,8 @@ namespace easy3d {
                                       const mat3 &rot, const vec3 &t, bool convert)
     {
 	    // This may not be accurate.
-        // Because it assumes image_height = (2.0 * cy). However in practice, cy may not be exactly at the image center.
+	    // The error may mainly due to the inaccuracy in cy. Because it assumes image_height = (2.0 * cy).
+	    // However from calibration, cy may not be exactly at the image center.
 
         /**-------------------------------------------------------------------
          * It took me quite a while to figure out this.
@@ -1048,8 +1053,6 @@ namespace easy3d {
         //                0.0,            0.0,             (n + f) / (n - f),         2.0 * n * f / (n - f),
         //                0.0,            0.0,            -1.0,                       0.0
         //                );
-        //
-        // I doubt the implementation of this function.
         const mat3 K(
                     fx, skew, cx,
                     0,  fy,   cy,

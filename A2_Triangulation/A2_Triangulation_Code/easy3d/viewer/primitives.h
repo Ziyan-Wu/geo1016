@@ -49,15 +49,6 @@ namespace easy3d {
         void draw_quad_filled(const Rect& rect, int texture, int width, int height, float depth);
 
         /**
-         * Draw a full screen textured quad.
-         * @param rect The quad.
-         * @param texture The texture.
-         * @param depth The depth at which the quad will be drawn. The depth value is the Normalized Device Coordinates
-         *              within the range [-1.0, 1.0], corresponding to the near and far clipping planes, respectively.
-         */
-        void draw_full_screen_quad(int texture, float depth);
-
-        /**
          * draw a quad visualizing a depth texture in a region. This is function is similar to
          * draw_quad_filled(... int texture...). The only difference is that a depth texture is rendered as a gray
          * scale image. For depth textures from off-screen rendering (usually from an FBO), the depth values are stored

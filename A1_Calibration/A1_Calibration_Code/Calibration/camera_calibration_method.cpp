@@ -109,7 +109,6 @@ bool CameraCalibration::calibration(
     Matrix<double> M(3, 4, 0.0);
     //std::vector<double> v(12);
     for (int i = 0; i < 3; i++) {
-
         M[i][0] = V[i * 4][11];
         M[i][1] = V[i * 4 + 1][11];
         M[i][2] = V[i * 4 + 2][11];

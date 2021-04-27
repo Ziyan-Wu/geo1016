@@ -91,10 +91,11 @@ namespace easy3d {
             vao_ = nullptr;
         }
 
-        if (texture_) {
-            delete texture_;
-            texture_ = nullptr;
-        }
+        // the client code is responsible for the memory management of the texture
+//        if (texture_) {
+//            delete texture_;
+//            texture_ = nullptr;
+//        }
 
         VertexArrayObject::release_buffer(vertex_buffer_);
         VertexArrayObject::release_buffer(color_buffer_);

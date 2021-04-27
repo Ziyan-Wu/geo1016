@@ -439,6 +439,7 @@ namespace easy3d {
 	public:
 		void setSceneRadius(float radius);
 		void setSceneCenter(const vec3 &center);
+        void setSceneBoundingBox(const Box3 &box);
 		void setSceneBoundingBox(const vec3 &min, const vec3 &max);
 		//@}
 

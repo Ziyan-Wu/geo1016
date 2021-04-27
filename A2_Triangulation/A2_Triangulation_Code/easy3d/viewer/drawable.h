@@ -153,6 +153,7 @@ namespace easy3d {
 		void set_use_texture(bool b) { use_texture_ = b; }
 
         Texture *texture() const { return texture_; }
+        /// @attention The client code is responsible for the memory management of the texture
         void set_texture(Texture *tex) { texture_ = tex; }
 
 		// How many time do you want to repeat the texture?

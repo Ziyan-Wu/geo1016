@@ -28,6 +28,8 @@
 #include <easy3d/viewer/camera.h>
 #include <easy3d/viewer/texture.h>
 #include <easy3d/viewer/primitives.h>
+#include <easy3d/viewer/drawable_triangles.h>
+#include <easy3d/viewer/drawable_lines.h>
 #include <easy3d/fileio/resources.h>
 #include <easy3d/fileio/point_cloud_io.h>
 
@@ -41,7 +43,11 @@ Triangulation::Triangulation(const std::string &title,
                              const std::string &image_point_file_0,
                              const std::string &image_point_file_1)
         : Viewer(title)
-        , texture_(nullptr)
+        , texture_0_(nullptr)
+        , texture_1_(nullptr)
+        , image_plane_(nullptr)
+        , view_frustum_(nullptr)
+        , show_images_(true)
 {
     auto load_image_points = [](const std::string image_point_file) -> std::vector<vec3> {
         PointCloud cloud;
@@ -83,6 +89,7 @@ std::string Triangulation::usage() const {
             "\t\t- Left button: rotate                                                \n"
             "\t\t- Right button: move                                                 \n"
             "\t\t- Wheel: zoom in/out                                                 \n"
+            "\t\t- 'i': show/hide images                                               \n"
             "-------------------------------------------------------------------------\n"
             "\tSome other tools provided by the viewer:                               \n"
             "\t\t- 's': take a snapshot of the visualization                          \n"
@@ -92,45 +99,8 @@ std::string Triangulation::usage() const {
 }
 
 
-void Triangulation::post_draw() {
-    Viewer::post_draw();
-    if (!texture_) {
-        texture_ = Texture::create(resource::directory() + "/data/images.png");
-        if (!texture_)
-            return;
-    }
-
-    int w = width() * dpi_scaling();
-    int h = height() * dpi_scaling();
-
-    int tex_w = texture_->width();
-    int tex_h = texture_->height();
-    float image_as = tex_w / static_cast<float>(tex_h);
-    float viewer_as = width() / static_cast<float>(height());
-    if (image_as < viewer_as) {// thin
-        tex_h = static_cast<int>(height() * 0.4f);
-        tex_w = static_cast<int>(tex_h * image_as);
-    }
-    else {
-        tex_w = static_cast<int>(width() * 0.4f);
-        tex_h = static_cast<int>(tex_w / image_as);
-    }
-
-    const Rect quad(20 * dpi_scaling(), (20 + tex_w) * dpi_scaling(), 20 * dpi_scaling(), (20 + tex_h) * dpi_scaling());
-    opengl::draw_quad_filled(quad, texture_->id(), w, h, -0.9f);
-}
-
-
-void Triangulation::cleanup() {
-    if (texture_)
-        delete texture_;
-    Viewer::cleanup();
-}
-
-
 bool Triangulation::key_press_event(int key, int modifiers) {
     if (key == GLFW_KEY_SPACE) {
-
         if (image_0_points_.size() != image_1_points_.size()) {
             LOG(ERROR) << "numbers of points do not match (" << image_0_points_.size() << " != "
                        << image_1_points_.size() << ")";
@@ -143,10 +113,13 @@ bool Triangulation::key_press_event(int key, int modifiers) {
             return false;
         }
 
-        const float fx = 1000;  /// TODO: tune to see how it affects the reconstruction
-        const float fy = 1000;  /// TODO: tune to see how it affects the reconstruction
-        const float cx = 320;   /// TODO: tune to see how it affects the reconstruction
-        const float cy = 240;   /// TODO: tune to see how it affects the reconstruction
+        const float fx = 1000;  /// TODO: modify fx to see how it affects the reconstruction (e.g., 970, 1010, 1030, 1050)
+        const float fy = 1000;  /// TODO: modify fy to see how it affects the reconstruction
+        const float cx = 320;   /// TODO: modify cx to see how it affects the reconstruction (e.g., 200, 250, 350, 400)
+        const float cy = 240;   /// TODO: modify cy to see how it affects the reconstruction
+        LOG(ERROR) << "TODO: tune the parameters (above line " << __LINE__ << " in file 'triangulation.cpp') and see how"
+                   << "\n\terrors in camera intrinsic parameters affect the final reconstruction. Please include your findings"
+                   << "\n\tand insights in the report";
         std::vector<vec3> points_3d;
         mat3 R;
         vec3 t;
@@ -157,39 +130,209 @@ bool Triangulation::key_press_event(int key, int modifiers) {
                 return false;
             }
 
-            PointCloud* cloud = dynamic_cast<PointCloud*>(current_model());
-            if (cloud)
-                cloud->clear();
+            update_model(points_3d);
+
+            const Box3& box = current_model()->bounding_box();
+            if (box.diagonal() > epsilon<float>()) {
+                // resize the viewer to have the same size as the image
+                resize(cx * 3, cy * 3);
+                // ensure the points are entirely within the view frustum
+                camera()->setSceneBoundingBox(current_model()->bounding_box());
+                // update view using the recovered R and r
+                camera()->set_from_calibration(fx, fy, 0.0, cx, cy, R, t, false);
+                update_image_plane(R, t);
+                return true;
+            }
             else {
-                cloud = new PointCloud;
-                cloud->set_name("triangulation.xyz");
-                add_model(cloud, false);
+                LOG(ERROR) << "the reconstructed points has a diagonal length (of its bounding box): " << box.diagonal()
+                           << ". This value is too small and the reconstruction might not be correct";
+                return false;
             }
-
-            for (std::size_t i=0; i<points_3d.size(); ++i)
-                cloud->add_vertex(points_3d[i]);
-            std::cout << "reconstructed model has " << cloud->n_vertices() << " points" << std::endl;
-
-            PointsDrawable* drawable = cloud->points_drawable("vertices");
-            if (!drawable) {
-                drawable = cloud->add_points_drawable("vertices");
-                drawable->set_default_color(vec4(0.8f, 0.3f, 0.4f, 1.0f));
-                drawable->set_point_size(5.0f);
-                drawable->set_impostor_type(PointsDrawable::SPHERE);
-            }
-            drawable->update_vertex_buffer(points_3d);
-
-            // update view using the recovered R and r
-            camera()->set_from_calibration(fx, fy, 0.0, cx, cy, R, t, true);
-
-            fit_screen();
-
-            return true;
         } else {
             LOG(ERROR) << "triangulation failed";
             return false;
         }
     }
+    else if (GLFW_KEY_I == key) {
+        show_images_ = !show_images_;
+        if (image_plane_)
+            image_plane_->set_visible(show_images_);
+        if (view_frustum_)
+            view_frustum_->set_visible(show_images_);
+        update();
+        return true;
+    }
     else
         return Viewer::key_press_event(key, modifiers);
+}
+
+
+void Triangulation::post_draw() {
+    Viewer::post_draw();
+
+    if (!show_images_)
+        return;
+
+    if (!texture_0_)
+        texture_0_ = Texture::create(resource::directory() + "/data/image_0.png");
+    if (!texture_1_)
+        texture_1_ = Texture::create(resource::directory() + "/data/image_1.png");
+
+    if (!texture_0_ || !texture_1_)
+        return;
+
+    int w = width() * dpi_scaling();
+    int h = height() * dpi_scaling();
+    float size_ratio = 0.2;
+
+    // ----------------------------------------------------------------------------------------------------------------
+
+    int tex0_w = texture_0_->width();
+    int tex0_h = texture_0_->height();
+    float image_as0 = tex0_w / static_cast<float>(tex0_h);
+    float viewer_as0 = width() / static_cast<float>(height());
+    if (image_as0 < viewer_as0) {// thin
+        tex0_h = static_cast<int>(height() * size_ratio);
+        tex0_w = static_cast<int>(tex0_h * image_as0);
+    } else {
+        tex0_w = static_cast<int>(width() * size_ratio);
+        tex0_h = static_cast<int>(tex0_w / image_as0);
+    }
+    const int x_min0 = 20 * dpi_scaling();
+    const int x_max0 = (20 + tex0_w) * dpi_scaling();
+    const Rect quad0(x_min0, x_max0, 20 * dpi_scaling(),(20 + tex0_h) * dpi_scaling());
+    opengl::draw_quad_filled(quad0, texture_0_->id(), w, h, -0.999f);
+
+    // ----------------------------------------------------------------------------------------------------------------
+
+    int tex1_w = texture_1_->width();
+    int tex1_h = texture_1_->height();
+    float image_as1 = tex1_w / static_cast<float>(tex1_h);
+    float viewer_as1 = width() / static_cast<float>(height());
+    if (image_as1 < viewer_as1) {// thin
+        tex1_h = static_cast<int>(height() * size_ratio);
+        tex1_w = static_cast<int>(tex1_h * image_as1);
+    } else {
+        tex1_w = static_cast<int>(width() * size_ratio);
+        tex1_h = static_cast<int>(tex1_w / image_as1);
+    }
+    const int x_min1 = x_max0 + 20 * dpi_scaling();
+    const int x_max1 = x_min1 + tex1_w * dpi_scaling();
+    if (!current_model()) {
+        const Rect quad1(x_min1, x_max1, 20 * dpi_scaling(), (20 + tex1_h) * dpi_scaling());
+        opengl::draw_quad_filled(quad1, texture_1_->id(), w, h, -0.999f);
+    }
+}
+
+
+void Triangulation::cleanup() {
+    if (texture_0_)
+        delete texture_0_;
+
+    if (texture_1_)
+        delete texture_1_;
+
+    Viewer::cleanup();
+}
+
+
+void Triangulation::update_model(const std::vector<easy3d::vec3>& points) {
+    if (points.empty())
+        return;
+
+    PointCloud* cloud = dynamic_cast<PointCloud*>(current_model());
+    if (cloud)
+        cloud->clear();
+    else {
+        cloud = new PointCloud;
+        cloud->set_name("triangulation.xyz");
+        add_model(cloud, false);
+    }
+
+    for (std::size_t i=0; i<points.size(); ++i)
+        cloud->add_vertex(points[i]);
+    std::cout << "reconstructed model has " << cloud->n_vertices() << " points" << std::endl;
+
+    PointsDrawable* drawable = cloud->points_drawable("vertices");
+    if (!drawable) {
+        drawable = cloud->add_points_drawable("vertices");
+        drawable->set_default_color(vec4(0.8f, 0.3f, 0.4f, 1.0f));
+        drawable->set_point_size(5.0f);
+        drawable->set_impostor_type(PointsDrawable::SPHERE);
+    }
+    drawable->update_vertex_buffer(points);
+}
+
+
+// create an image plane
+void Triangulation::update_image_plane(const easy3d::mat3 &R, const easy3d::vec3 &t) {
+    if (!image_plane_) {
+        image_plane_ = new TrianglesDrawable("image_plane");
+        image_plane_->set_visible(show_images_);
+        image_plane_->update_texcoord_buffer({ vec2(0, 0), vec2(1, 0), vec2(1, 1), vec2(0, 1) });
+        image_plane_->update_index_buffer({0, 1, 3, 1, 2, 3});
+        image_plane_->set_distinct_back_color(true);
+        add_drawable(image_plane_);
+
+        if (!texture_1_)
+            texture_1_ = Texture::create(resource::directory() + "/data/image_1.png");
+
+        if (texture_1_) {
+            image_plane_->set_texture(texture_1_);
+            image_plane_->set_use_texture(true);
+        }
+    }
+
+    if (!view_frustum_) {
+        view_frustum_ = new LinesDrawable("view_frustum");
+        view_frustum_->set_visible(show_images_);
+        add_drawable(view_frustum_);
+    }
+
+    // Determine the distance between the image plane and the camera
+#if 1
+    // I want to put it just behind the points
+    float dist = 0;
+    for (auto& v : current_model()->points()) {
+        float d = dot(v - camera()->position(), camera()->viewDirection());
+        dist = std::max(dist, d);
+    }
+    dist *= 1.01f; // push slightly behind the points
+
+    const float fov = camera()->fieldOfView();
+    const float hw_ratio = static_cast<float>(height()) / width();
+    const float halfHeight = dist * tan(fov * 0.5);
+    const float halfWidth = halfHeight / hw_ratio;
+#else
+    const float fov = camera()->fieldOfView();
+    const float hw_ratio = static_cast<float>(height()) / width();
+    const float halfWidth = camera()->sceneRadius() * 2;  // just a rought estimation, not accurate at all
+    const float halfHeight = halfWidth * hw_ratio;
+    const float dist = halfHeight / tan(fov * 0.5);
+#endif
+
+    // coordinates in camera frame
+    const vec3 c(0.0f, 0.0f, 0.0f);  // camera center
+    std::vector<vec3> corners = {
+            vec3(-halfWidth, -halfHeight, -dist),
+            vec3(halfWidth, -halfHeight, -dist),
+            vec3(halfWidth, halfHeight, -dist),
+            vec3(-halfWidth, halfHeight, -dist)
+    };
+
+    Box3 box = current_model()->bounding_box();
+    // convert to world coordinate system
+    for (auto &p : corners) {
+        p = camera()->worldCoordinatesOf(p);
+        box.add_point(p);
+    }
+    box.add_point(camera()->position());
+    camera()->setSceneBoundingBox(box);
+    camera()->setPivotPoint(current_model()->bounding_box().center());
+
+    image_plane_->update_vertex_buffer(corners);
+
+    corners.push_back(camera()->position());
+    view_frustum_->update_vertex_buffer(corners);
+    view_frustum_->update_index_buffer({0, 4, 1, 4, 2, 4, 3, 4});
 }

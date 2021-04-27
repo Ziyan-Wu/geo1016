@@ -25,6 +25,7 @@
 
 #include <easy3d/optimizer/optimizer_lm.h>
 #include <cminpack.h>
+#include <cstdio>
 
 namespace easy3d {
 

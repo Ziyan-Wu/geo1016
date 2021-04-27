@@ -29,6 +29,8 @@
 
 namespace easy3d {
     class Texture;
+    class TrianglesDrawable;
+    class LinesDrawable;
 }
 
 class Triangulation : public easy3d::Viewer
@@ -57,10 +59,19 @@ protected:
     void post_draw() override;
     void cleanup() override;
 
+    void update_model(const std::vector<easy3d::vec3>& points);
+    void update_image_plane(const easy3d::mat3& R, const easy3d::vec3& t);
+
 private:
     std::vector<easy3d::vec3>  image_0_points_;
     std::vector<easy3d::vec3>  image_1_points_;
-    easy3d::Texture* texture_;
+    easy3d::Texture* texture_0_;
+    easy3d::Texture* texture_1_;
+
+    easy3d::TrianglesDrawable *image_plane_;
+    easy3d::LinesDrawable *view_frustum_;
+
+    bool show_images_;
 };
 
 
